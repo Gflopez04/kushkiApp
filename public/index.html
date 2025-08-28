@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pago Kushki</title>
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script src="https://cdn.kushkipagos.com/kushki.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h2>Formulario de Pago</h2>
+    <form id="payment-form">
+      <input type="text" id="name" placeholder="Nombre completo" required>
+      <input type="text" id="number" placeholder="Número de tarjeta" required>
+      <input type="text" id="expiryMonth" placeholder="Mes (MM)" required>
+      <input type="text" id="expiryYear" placeholder="Año (YY)" required>
+      <input type="text" id="cvv" placeholder="CVV" required>
+      <input type="number" id="amount" placeholder="Monto" required>
+      <button type="submit">Pagar</button>
+    </form>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('payment-form');
+    const resultDiv = document.getElementById('result');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      resultDiv.textContent = 'Procesando pago...';
+      resultDiv.className = '';
+
+      const name = document.getElementById('name').value;
+      const number = document.getElementById('number').value;
+      const expiryMonth = document.getElementById('expiryMonth').value;
+      const expiryYear = document.getElementById('expiryYear').value;
+      const cvv = document.getElementById('cvv').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+
+      try {
+        const kushki = new Kushki({ merchantId: 'ef6ad643669a4ad5880cbcd801ef73a0', inTestEnvironment: true });
+
+        kushki.requestToken({
+          amount,
+          currency: 'COP',
+          card: { name, number, expiryMonth, expiryYear, cvc: cvv }
+        }, async (response) => {
+          if (response.token) {
+            const backendResponse = await fetch('/charge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token: response.token,
+                amount: {
+                  currency: 'COP',
+                  subtotalIva: 0,
+                  subtotalIva0: amount,
+                  iva: 0,
+                  ice: 0,
+                  extraTaxes: { iac: 0, tasaAeroportuaria:0, agenciaDeViaje:0 }
+                },
+                contactDetails: {
+                  firstName: 'Demo',
+                  lastName: 'Cliente',
+                  email: 'demo@example.com',
+                  documentType: 'ID',
+                  documentNumber: '123456',
+                  phoneNumber: '+573001234567'
+                }
+              })
+            });
+
+            const data = await backendResponse.json();
+            if (data.status === 'approved') {
+              resultDiv.textContent = ` Aprobado - Ticket: ${data.details.ticketNumber}`;
+              resultDiv.classList.add('approved');
+            } else {
+              resultDiv.textContent = ' Rechazado';
+              resultDiv.classList.add('declined');
+            }
+
+          } else {
+            resultDiv.textContent = `Error: ${response.error}`;
+            resultDiv.classList.add('declined');
+          }
+        });
+
+      } catch (err) {
+        console.error(err);
+        resultDiv.textContent = 'Error procesando el pago';
+        resultDiv.classList.add('declined');
+      }
+    });
+  </script>
+</body>
+</html>
